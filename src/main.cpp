@@ -6,7 +6,9 @@
 #include <vector>
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
+#include "Eigen-3.3/Eigen/Dense"
 #include "MPC.h"
+#include "polyutil.hpp"
 #include "json.hpp"
 
 // for convenience
@@ -32,39 +34,6 @@ string hasData(string s) {
   return "";
 }
 
-// Evaluate a polynomial.
-double polyeval(Eigen::VectorXd coeffs, double x) {
-  double result = 0.0;
-  for (int i = 0; i < coeffs.size(); i++) {
-    result += coeffs[i] * pow(x, i);
-  }
-  return result;
-}
-
-// Fit a polynomial.
-// Adapted from
-// https://github.com/JuliaMath/Polynomials.jl/blob/master/src/Polynomials.jl#L676-L716
-Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals,
-                        int order) {
-  assert(xvals.size() == yvals.size());
-  assert(order >= 1 && order <= xvals.size() - 1);
-  Eigen::MatrixXd A(xvals.size(), order + 1);
-
-  for (int i = 0; i < xvals.size(); i++) {
-    A(i, 0) = 1.0;
-  }
-
-  for (int j = 0; j < xvals.size(); j++) {
-    for (int i = 0; i < order; i++) {
-      A(j, i + 1) = A(j, i) * xvals(j);
-    }
-  }
-
-  auto Q = A.householderQr();
-  auto result = Q.solve(yvals);
-  return result;
-}
-
 int main() {
   uWS::Hub h;
 
@@ -87,6 +56,14 @@ int main() {
           // j[1] is the data JSON object
           vector<double> ptsx = j[1]["ptsx"];
           vector<double> ptsy = j[1]["ptsy"];
+          Eigen::VectorXd ptsx_eigen(ptsx.size());
+          for(size_t i = 0; i < ptsx.size(); i++) {
+            ptsx_eigen(i) = ptsx[i];
+          }
+          Eigen::VectorXd ptsy_eigen(ptsy.size());
+          for(size_t i = 0; i < ptsy.size(); i++) {
+            ptsy_eigen(i) = ptsy[i];
+          }
           double px = j[1]["x"];
           double py = j[1]["y"];
           double psi = j[1]["psi"];
@@ -98,9 +75,17 @@ int main() {
           * Both are in between [-1, 1].
           *
           */
-          double steer_value;
-          double throttle_value;
-
+          auto coeffs = polyfit(ptsx_eigen, ptsy_eigen, 3);
+          Eigen::VectorXd state(6);
+          state(0) = px;
+          state(1) = py;
+          state(2) = psi;
+          state(3) = v;
+          state(4) = polyeval(coeffs, px) - py;
+          state(5) = psi - angleeval(coeffs, px);
+          vector<double> controls = mpc.Solve(state, coeffs);
+          double steer_value = controls[0];
+          double throttle_value = controls[1];
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
           // Otherwise the values will be in between [-deg2rad(25), deg2rad(25] instead of [-1, 1].
