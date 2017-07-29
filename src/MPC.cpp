@@ -54,25 +54,24 @@ class FG_eval {
 
     // cost based on reference state
     for(size_t t = 0; t < N; t++) {
-      fg[0] += CppAD::pow(vars[cte_start + t], 2);
-      fg[0] += CppAD::pow(vars[psi_error_start + t], 2);
+      fg[0] += 1000 * CppAD::pow(vars[cte_start + t], 2);
+      fg[0] += 1000 * CppAD::pow(vars[psi_error_start + t], 2);
       fg[0] += CppAD::pow(vars[v_start + t] - ref_vel, 2);
     }
 
     // cost for actuators
     // i.e. prefer small steering angles and acceleration
-    /* for(size_t t = 0; t < N - 1; t++) {
+    for(size_t t = 0; t < N - 1; t++) {
       fg[0] += CppAD::pow(vars[delta_start + t], 2);
       fg[0] += CppAD::pow(vars[acc_start + t], 2);
-    }*/
+    }
 
     // minimize difference between sequential control changes
     // i.e. steer and accelerate smoothly
-    /* for(size_t t = 0; t < N - 2; t++) {
+    for(size_t t = 0; t < N - 2; t++) {
       fg[0] += CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
       fg[0] += CppAD::pow(vars[acc_start + t + 1] - vars[acc_start + t], 2);
     }
-    */
 
     std::cout << "remaining constraints" << std::endl;
     // remaining constraints
@@ -83,7 +82,6 @@ class FG_eval {
     fg[1 + cte_start] = vars[cte_start];
     fg[1 + psi_error_start] = vars[psi_error_start];
 
-    std::cout << "DONE remaining constraints" << std::endl;
     for(size_t t = 1; t < N; t++) {
       // unpack state at time t
       AD<double> x0 = vars[x_start + t - 1];
@@ -91,7 +89,7 @@ class FG_eval {
       AD<double> psi0 = vars[psi_start + t - 1];
       AD<double> v0 = vars[v_start + t - 1];
       // We compute cte0 again using our fitted polynom
-      AD<double> cte0 = vars[cte_start + t - 1];
+      // AD<double> cte0 = vars[cte_start + t - 1];
       AD<double> psi_error0 = vars[psi_error_start + t - 1];
 
       // unpack control vector at time t
@@ -125,7 +123,7 @@ class FG_eval {
       // y
       fg[1 + y_start + t] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
       // psi
-      fg[1 + psi_start + t] = psi1 - (psi0 + v0 / wheel_base * delta0 * dt);
+      fg[1 + psi_start + t] = psi1 - (psi0 - v0 / wheel_base * delta0 * dt);
       // velocity
       fg[1 + v_start + t] = v1 - (v0 + acc0 * dt);
       // cross track error
@@ -133,11 +131,9 @@ class FG_eval {
           cte1 - ((f0 - y0) + (v0 * CppAD::sin(psi_error0) * dt));
       // error psi
       fg[1 + psi_error_start + t] =
-          psi_error1 - ((psi0 - psi_des0) + v0 / wheel_base * delta0 * dt);
+          psi_error1 - ((psi0 - psi_des0) - v0 / wheel_base * delta0 * dt);
 
     }
-    std::cout << "DONE PIMMELROCKING!" << std::endl;
-
   }
 };
 
@@ -189,7 +185,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   }
   for(size_t i = acc_start; i < n_vars; i++) {
     vars_lowerbound[i] = -1.0;
-    vars_lowerbound[i] = 1.0;
+    vars_upperbound[i] = 1.0;
   }
   // Lower and upper limits for the constraints
   // Should be 0 besides initial state.
@@ -252,15 +248,13 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   ok &= solution.status == CppAD::ipopt::solve_result<Dvector>::success;
 
   if(!ok) {
-    std::cout << "Something went wrong!" << std::endl;
+    std::cout << "IPOPT: Something went wrong!" << std::endl;
     exit(0);
   }
 
   for(size_t i = 0; i < N; i++) {
     std::cout << "x" << i << ": " << solution.x[x_start + i] << std::endl;
   }
-
-  std::cout << "WTF?" << std::endl;
   // set x and y values
   x_vals_.resize(N);
   y_vals_.resize(N);
@@ -268,7 +262,6 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
     x_vals_[i] = solution.x[x_start + i];
     y_vals_[i] = solution.x[y_start + i];
   }
-  std::cout << "WTF**2?" << std::endl;
 
 
   // Cost

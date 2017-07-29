@@ -69,31 +69,27 @@ int main() {
           *
           */
           // transform to vehicle coordinate system
+          // 2D RotationMatrix (https://en.wikipedia.org/wiki/Rotation_matrix):
+          // R= [[cos(psi), -sin(psi),
+          //      sin(psi),  cos(psi)]]
           Eigen::VectorXd ptsx_vehicle(ptsx.size());
           Eigen::VectorXd ptsy_vehicle(ptsy.size());
           for(size_t i = 0; i < ptsx.size(); i++) {
             double shift_x = ptsx[i] - px;
             double shift_y = ptsy[i] - py;
-            ptsx_vehicle[i] = shift_x * std::cos(0.0 - psi)
-                              - shift_y * std::sin(0.0 - psi);
-            ptsy_vehicle[i] = shift_x * std::sin(0.0 - psi)
-                              + shift_y * std::cos(0.0 - psi);
+            ptsx_vehicle[i] = shift_x * std::cos(psi)
+                              - shift_y * std::sin(psi);
+            ptsy_vehicle[i] = shift_x * std::sin(psi)
+                              + shift_y * std::cos(psi);
           }
           auto coeffs = polyfit(ptsx_vehicle, ptsy_vehicle, 3);
-          Eigen::VectorXd state(6);
-          state(0) = 0.0;
-          state(1) = 0.0;
-          state(2) = 0.0;
+          Eigen::VectorXd state = Eigen::VectorXd::Zero(6);
           state(3) = v;
           state(4) = polyeval(coeffs, 0.0);
-          state(5) = -angleeval(coeffs, 0.0);
-          std::cout << "State: " << state << std::endl;
-          std::cout << "Start mpc.Solve" << std::endl;
+          state(5) = angleeval(coeffs, 0.0);
           vector<double> controls = mpc.Solve(state, coeffs);
-          std::cout << "DONE mpc.Solve" << std::endl;
           double steer_value = controls[0];
           double throttle_value = controls[1];
-          std::cout << "what?" << std::endl;
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
           // Otherwise the values will be in between [-deg2rad(25), deg2rad(25] instead of [-1, 1].
@@ -111,16 +107,15 @@ int main() {
           msgJson["mpc_y"] = mpc_y_vals;
 
           //Display the waypoints/reference line
-          vector<double> next_x_vals;
-          vector<double> next_y_vals;
+          vector<double> next_x_vals(ptsx_vehicle.size());
+          vector<double> next_y_vals(ptsy_vehicle.size());
 
+          Eigen::VectorXd::Map(&next_x_vals[0], ptsx_vehicle.size()) = ptsx_vehicle;
+          Eigen::VectorXd::Map(&next_y_vals[0], ptsy_vehicle.size()) = ptsy_vehicle;
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
-          std::cout << "Sending jsoN" << std::endl;
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
-          std::cout << "DONE Sending jsoN" << std::endl;
-
 
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
           std::cout << msg << std::endl;
