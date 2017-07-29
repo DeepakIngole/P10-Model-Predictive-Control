@@ -56,14 +56,7 @@ int main() {
           // j[1] is the data JSON object
           vector<double> ptsx = j[1]["ptsx"];
           vector<double> ptsy = j[1]["ptsy"];
-          Eigen::VectorXd ptsx_eigen(ptsx.size());
-          for(size_t i = 0; i < ptsx.size(); i++) {
-            ptsx_eigen(i) = ptsx[i];
-          }
-          Eigen::VectorXd ptsy_eigen(ptsy.size());
-          for(size_t i = 0; i < ptsy.size(); i++) {
-            ptsy_eigen(i) = ptsy[i];
-          }
+
           double px = j[1]["x"];
           double py = j[1]["y"];
           double psi = j[1]["psi"];
@@ -75,17 +68,32 @@ int main() {
           * Both are in between [-1, 1].
           *
           */
-          auto coeffs = polyfit(ptsx_eigen, ptsy_eigen, 3);
+          // transform to vehicle coordinate system
+          Eigen::VectorXd ptsx_vehicle(ptsx.size());
+          Eigen::VectorXd ptsy_vehicle(ptsy.size());
+          for(size_t i = 0; i < ptsx.size(); i++) {
+            double shift_x = ptsx[i] - px;
+            double shift_y = ptsy[i] - py;
+            ptsx_vehicle[i] = shift_x * std::cos(0.0 - psi)
+                              - shift_y * std::sin(0.0 - psi);
+            ptsy_vehicle[i] = shift_x * std::sin(0.0 - psi)
+                              + shift_y * std::cos(0.0 - psi);
+          }
+          auto coeffs = polyfit(ptsx_vehicle, ptsy_vehicle, 3);
           Eigen::VectorXd state(6);
-          state(0) = px;
-          state(1) = py;
-          state(2) = psi;
+          state(0) = 0.0;
+          state(1) = 0.0;
+          state(2) = 0.0;
           state(3) = v;
-          state(4) = polyeval(coeffs, px) - py;
-          state(5) = psi - angleeval(coeffs, px);
+          state(4) = polyeval(coeffs, 0.0);
+          state(5) = -angleeval(coeffs, 0.0);
+          std::cout << "State: " << state << std::endl;
+          std::cout << "Start mpc.Solve" << std::endl;
           vector<double> controls = mpc.Solve(state, coeffs);
+          std::cout << "DONE mpc.Solve" << std::endl;
           double steer_value = controls[0];
           double throttle_value = controls[1];
+          std::cout << "what?" << std::endl;
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
           // Otherwise the values will be in between [-deg2rad(25), deg2rad(25] instead of [-1, 1].
@@ -93,8 +101,8 @@ int main() {
           msgJson["throttle"] = throttle_value;
 
           //Display the MPC predicted trajectory 
-          vector<double> mpc_x_vals;
-          vector<double> mpc_y_vals;
+          vector<double> mpc_x_vals = mpc.x_vals_;
+          vector<double> mpc_y_vals = mpc.y_vals_;
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
@@ -108,9 +116,10 @@ int main() {
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
-
+          std::cout << "Sending jsoN" << std::endl;
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
+          std::cout << "DONE Sending jsoN" << std::endl;
 
 
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
