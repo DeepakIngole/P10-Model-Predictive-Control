@@ -31,7 +31,7 @@ const size_t acc_start = delta_start + N - 1;
 // This is the length from front to CoG that has a similar radius.
 const double wheel_base = 2.67;
 
-const double ref_vel = 40.0;
+const double ref_vel = 50.0;
 
 class FG_eval {
  public:
@@ -52,10 +52,11 @@ class FG_eval {
     // set up the cost
     fg[0] = 0.0;
 
+
     // cost based on reference state
     for(size_t t = 0; t < N; t++) {
-      fg[0] += 1000 * CppAD::pow(vars[cte_start + t], 2);
-      fg[0] += 1000 * CppAD::pow(vars[psi_error_start + t], 2);
+      fg[0] += CppAD::pow(vars[cte_start + t], 2);
+      fg[0] += 10 * CppAD::pow(vars[psi_error_start + t], 2);
       fg[0] += CppAD::pow(vars[v_start + t] - ref_vel, 2);
     }
 
@@ -69,11 +70,10 @@ class FG_eval {
     // minimize difference between sequential control changes
     // i.e. steer and accelerate smoothly
     for(size_t t = 0; t < N - 2; t++) {
-      fg[0] += CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
+      fg[0] += 10 * CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
       fg[0] += CppAD::pow(vars[acc_start + t + 1] - vars[acc_start + t], 2);
     }
 
-    std::cout << "remaining constraints" << std::endl;
     // remaining constraints
     fg[1 + x_start] = vars[x_start];
     fg[1 + y_start] = vars[y_start];
@@ -105,12 +105,12 @@ class FG_eval {
       AD<double> psi_error1 = vars[psi_error_start + t];
 
       // evaluate fitted polynom
-      // TODO(see--): Allow arbitary order
+      // TODO(see--): Allow arbitary polynomial order
       assert(coeffs.size() == 4);
       AD<double> f0 =
           coeffs[0]
           + coeffs[1] * x0
-          + coeffs[2] * x0 * x0;
+          + coeffs[2] * x0 * x0
           + coeffs[3] * x0 * x0 * x0;
       AD<double> psi_des0 = CppAD::atan(
             coeffs[1]
@@ -180,8 +180,8 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   }
 
   for(size_t i = delta_start; i < acc_start; i++) {
-    vars_lowerbound[i] = -1.0;
-    vars_upperbound[i] = 1.0;
+    vars_lowerbound[i] = -0.5;
+    vars_upperbound[i] = 0.5;
   }
   for(size_t i = acc_start; i < n_vars; i++) {
     vars_lowerbound[i] = -1.0;
@@ -239,7 +239,6 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   CppAD::ipopt::solve_result<Dvector> solution;
 
   // solve the problem
-  std::cout << "HANDLE TO SOLVER" << std::endl;
   CppAD::ipopt::solve<Dvector, FG_eval>(
       options, vars, vars_lowerbound, vars_upperbound, constraints_lowerbound,
       constraints_upperbound, fg_eval, solution);
@@ -252,9 +251,6 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
     exit(0);
   }
 
-  for(size_t i = 0; i < N; i++) {
-    std::cout << "x" << i << ": " << solution.x[x_start + i] << std::endl;
-  }
   // set x and y values
   x_vals_.resize(N);
   y_vals_.resize(N);
@@ -273,5 +269,6 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   //
   // {...} is shorthand for creating a vector, so auto x1 = {1.0,2.0}
   // creates a 2 element double vector.
+  // return second control vector to account for latency
   return {solution.x[delta_start], solution.x[acc_start]};
 }
