@@ -31,7 +31,7 @@ const size_t acc_start = delta_start + N - 1;
 // This is the length from front to CoG that has a similar radius.
 const double wheel_base = 2.67;
 
-const double ref_vel = 80.0;
+const double ref_vel = 100.0;
 
 class FG_eval {
  public:
@@ -56,8 +56,8 @@ class FG_eval {
     // cost based on reference state
     for(size_t t = 0; t < N; t++) {
       fg[0] += CppAD::pow(vars[cte_start + t], 2);
-      fg[0] += 10 * CppAD::pow(vars[psi_error_start + t], 2);
-      fg[0] += 0.05 * CppAD::pow(vars[v_start + t] - ref_vel, 2);
+      fg[0] += 40 * CppAD::pow(vars[psi_error_start + t], 2);
+      fg[0] += 0.1 * CppAD::pow(vars[v_start + t] - ref_vel, 2);
     }
 
     // cost for actuators
@@ -71,7 +71,7 @@ class FG_eval {
     // i.e. steer and accelerate smoothly
     for(size_t t = 0; t < N - 2; t++) {
       fg[0] += 10 * CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
-      fg[0] += CppAD::pow(vars[acc_start + t + 1] - vars[acc_start + t], 2);
+      fg[0] += 5 * CppAD::pow(vars[acc_start + t + 1] - vars[acc_start + t], 2);
     }
 
     // minimize centripetal acceleration: v**2 * kappa
@@ -90,7 +90,7 @@ class FG_eval {
               + 6 * coeffs[3] * x;
       AD<double> kappa = ddy / CppAD::pow(1.0 + dy * dy, 1.5);
       AD<double> v = vars[v_start + t];
-      fg[0] += 0.01 * CppAD::pow(v * v * kappa, 2);
+      fg[0] += 0.03 * CppAD::pow(v * v * kappa, 2);
     }
 
     // remaining constraints
@@ -278,7 +278,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
 
   // Cost
   auto cost = solution.obj_value;
-  std::cout << "Cost " << cost << std::endl;
+  std::cout << "Cost " << cost << " psi_error: " << solution.x[psi_error_start] << " cte: " << solution.x[cte_start]<< std::endl;
   // account for latency
   double latency_corrected_steer =
       (solution.x[delta_start] + solution.x[delta_start +1]) / 2.0;

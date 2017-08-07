@@ -41,14 +41,13 @@ int main() {
 
   // MPC is initialized here!
   MPC mpc;
-
   h.onMessage([&mpc](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
     string sdata = string(data).substr(0, length);
-    cout << sdata << endl;
+    // cout << sdata << endl;
     if (sdata.size() > 2 && sdata[0] == '4' && sdata[1] == '2') {
       string s = hasData(sdata);
       if (s != "") {
@@ -63,7 +62,6 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
-
           /*
           * TODO: Calculate steering angle and throttle using MPC.
           *
@@ -85,6 +83,7 @@ int main() {
                               + shift_y * std::cos(psi);
           }
 
+
           // copy to Eigen::VectorXd
           // Magic "6" from: https://www.youtube.com/watch?v=bOQuhpz3YfU&index=5&t=1726s&list=PLAwxTw4SYaPnfR7TzRZN-uxlxGbqxhtm2#t=5m53s
           // otherwise the fitted polynomial is off
@@ -95,13 +94,14 @@ int main() {
           state(3) = v;
           state(4) = polyeval(coeffs, 0.0);
           state(5) = -angleeval(coeffs, 0.0);
+
           vector<double> controls = mpc.Solve(state, coeffs);
           double steer_value = controls[0];
           double throttle_value = controls[1];
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
           // Otherwise the values will be in between [-deg2rad(25), deg2rad(25] instead of [-1, 1].
-          msgJson["steering_angle"] = steer_value / (deg2rad(25));
+          msgJson["steering_angle"] = steer_value / deg2rad(25);
           msgJson["throttle"] = throttle_value;
 
           //Display the MPC predicted trajectory 
@@ -110,6 +110,8 @@ int main() {
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
+          // mpc_x_vals = std::vector<double> {-2., -2.};
+          // mpc_y_vals = std::vector<double> {2, -2};
 
           msgJson["mpc_x"] = mpc_x_vals;
           msgJson["mpc_y"] = mpc_y_vals;
@@ -133,7 +135,7 @@ int main() {
           //
           // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
           // SUBMITTING.
-          this_thread::sleep_for(chrono::milliseconds(100));
+          this_thread::sleep_for(chrono::milliseconds(0));
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {
