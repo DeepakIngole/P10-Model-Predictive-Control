@@ -31,7 +31,7 @@ const size_t acc_start = delta_start + N - 1;
 // This is the length from front to CoG that has a similar radius.
 const double wheel_base = 2.67;
 
-const double ref_vel = 50.0;
+const double ref_vel = 80.0;
 
 class FG_eval {
  public:
@@ -57,7 +57,7 @@ class FG_eval {
     for(size_t t = 0; t < N; t++) {
       fg[0] += CppAD::pow(vars[cte_start + t], 2);
       fg[0] += 10 * CppAD::pow(vars[psi_error_start + t], 2);
-      fg[0] += CppAD::pow(vars[v_start + t] - ref_vel, 2);
+      fg[0] += 0.05 * CppAD::pow(vars[v_start + t] - ref_vel, 2);
     }
 
     // cost for actuators
@@ -72,6 +72,25 @@ class FG_eval {
     for(size_t t = 0; t < N - 2; t++) {
       fg[0] += 10 * CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
       fg[0] += CppAD::pow(vars[acc_start + t + 1] - vars[acc_start + t], 2);
+    }
+
+    // minimize centripetal acceleration: v**2 * kappa
+    // i.e. slower  curves
+    // TODO(see--): Allow arbitary polynomial order
+    assert(coeffs.size() == 4);
+    for(size_t t = 0; t < N; t++) {
+      AD<double> x = vars[x_start + t];
+
+      AD<double> dy =
+          coeffs[1]
+          + 2 * coeffs[2] * x
+          + 3 * coeffs[3] * x * x;
+      AD<double> ddy =
+              2 * coeffs[2]
+              + 6 * coeffs[3] * x;
+      AD<double> kappa = ddy / CppAD::pow(1.0 + dy * dy, 1.5);
+      AD<double> v = vars[v_start + t];
+      fg[0] += 0.01 * CppAD::pow(v * v * kappa, 2);
     }
 
     // remaining constraints
@@ -95,7 +114,6 @@ class FG_eval {
       // unpack control vector at time t
       AD<double> delta0 = vars[delta_start + t - 1];
       AD<double> acc0 = vars[acc_start + t - 1];
-
       // unpack state at time t + 1
       AD<double> x1 = vars[x_start + t];
       AD<double> y1 = vars[y_start + t];
@@ -105,8 +123,6 @@ class FG_eval {
       AD<double> psi_error1 = vars[psi_error_start + t];
 
       // evaluate fitted polynom
-      // TODO(see--): Allow arbitary polynomial order
-      assert(coeffs.size() == 4);
       AD<double> f0 =
           coeffs[0]
           + coeffs[1] * x0
@@ -131,7 +147,7 @@ class FG_eval {
           cte1 - ((f0 - y0) + (v0 * CppAD::sin(psi_error0) * dt));
       // error psi
       fg[1 + psi_error_start + t] =
-          psi_error1 - ((psi0 - psi_des0) - v0 / wheel_base * delta0 * dt);
+          psi_error1 - ((psi0 - psi_des0) - v0 / wheel_base * CppAD::tan(delta0) * dt);
 
     }
   }
@@ -180,8 +196,8 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   }
 
   for(size_t i = delta_start; i < acc_start; i++) {
-    vars_lowerbound[i] = -0.5;
-    vars_upperbound[i] = 0.5;
+    vars_lowerbound[i] = -0.3;
+    vars_upperbound[i] = 0.3;
   }
   for(size_t i = acc_start; i < n_vars; i++) {
     vars_lowerbound[i] = -1.0;
@@ -263,6 +279,11 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   // Cost
   auto cost = solution.obj_value;
   std::cout << "Cost " << cost << std::endl;
+  // account for latency
+  double latency_corrected_steer =
+      (solution.x[delta_start] + solution.x[delta_start +1]) / 2.0;
+  double latency_corrected_acc =
+      (solution.x[acc_start] + solution.x[acc_start +1]) / 2.0;
 
   // TODO: Return the first actuator values. The variables can be accessed with
   // `solution.x[i]`.
@@ -270,5 +291,5 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   // {...} is shorthand for creating a vector, so auto x1 = {1.0,2.0}
   // creates a 2 element double vector.
   // return second control vector to account for latency
-  return {solution.x[delta_start], solution.x[acc_start]};
+  return {latency_corrected_steer, latency_corrected_acc};
 }
