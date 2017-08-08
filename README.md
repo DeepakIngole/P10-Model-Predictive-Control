@@ -4,7 +4,7 @@ The goals / steps of this project are the following:
 
 * Build a MPC and tune the hyperparameters
 * Test the controller on the simulator
-* Check how fast you can go with the [solution]((./writeup/mpc.mp4))
+* Check how fast you can go with the [solution](./writeup/mpc.mp4)
 
 [//]: # (Image References)
 [image1]: ./writeup/equations.png
