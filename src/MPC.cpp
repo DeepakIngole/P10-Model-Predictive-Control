@@ -147,7 +147,7 @@ class FG_eval {
           cte1 - ((f0 - y0) + (v0 * CppAD::sin(psi_error0) * dt));
       // error psi
       fg[1 + psi_error_start + t] =
-          psi_error1 - ((psi0 - psi_des0) - v0 / wheel_base * CppAD::tan(delta0) * dt);
+          psi_error1 - ((psi0 - psi_des0) - v0 / wheel_base * delta0 * dt);
 
     }
   }

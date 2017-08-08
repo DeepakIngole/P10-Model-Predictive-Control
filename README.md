@@ -1,4 +1,51 @@
-# CarND-Controls-MPC
+# Model Predictive Controller Project
+
+The goals / steps of this project are the following:
+
+* Build a MPC and tune the hyperparameters
+* Test the controller on the simulator
+* Check how fast you can go with the [solution]((./writeup/mpc.mp4))
+
+[//]: # (Image References)
+[image1]: ./writeup/equations.png
+[image2]: ./writeup/state.png
+[image3]: ./writeup/cost.png
+
+
+## [Rubric](https://review.udacity.com/#!/rubrics/896/view) Points
+### Here I will consider the rubric points individually and describe how I addressed each point in my implementation.  
+
+### Writeup
+
+### Overview:
+#### **Model:**
+We use the kinematic bicycle model and assume small steering angles. The state and control vector are given by:
+
+![alt text][image2]
+
+Here, x, y and psi are the vehicle position and heading in the vehicle coordinate system. The remaining states are: the cross track error with respect to our fitted polynomial and the deviation between the vehicle heading and the desired heading. The control vector is given by the steering angle and the vehicle's acceleration.
+
+I used the following state equations:
+![alt text][image1]
+
+These equations are implemented in `MPC.cpp` line: 138-150.
+They are modeled as constraints for the employed [interior point solver](https://projects.coin-or.org/Ipopt).
+We can use this solver to minimize our objective:
+
+![alt text][image3]
+
+In addition to the cross-track and heading error I added the centripetal acceleration. This makes the vehicle decelerate before curves and accelerate when it leaves them.
+
+
+#### **Time horizon and timestep length:**
+Since we should simulate a 100ms latency I choose the same duration (i.e. `dt=0.1` `MPC.cpp` line 11). The idea was to simply pick the control value at t+1 to account for the latency. A time horizon of 10 gave good results and the solver ran sufficiently fast.
+
+#### **Latency:**
+
+As discussed previously, I thought that I can just use the controls at time t+1. However, the controller was not able to keep the vehicle on the track. It always looked like it would account for a higher latency. Therefore I averaged the controls from time t and t+1 (`MPC.cpp` line 283-286). This gives a nice steering behaviour which can be seen in [this video](./writeup/mpc.mp4)
+
+
+# Old README
 Self-Driving Car Engineer Nanodegree Program
 
 ---
