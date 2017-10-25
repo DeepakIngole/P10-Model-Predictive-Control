@@ -1,15 +1,18 @@
 # Model Predictive Controller Project
 
+[//]: # (Image References)
+[image1]: ./writeup/equations.png
+[image2]: ./writeup/state.png
+[image3]: ./writeup/cost.png
+[image4]: ./writeup/result.gif
+
+![alt text][image4]
+
 The goals / steps of this project are the following:
 
 * Build a MPC and tune the hyperparameters
 * Test the controller on the simulator
 * Check how fast you can go with the [solution](./writeup/mpc.mp4)
-
-[//]: # (Image References)
-[image1]: ./writeup/equations.png
-[image2]: ./writeup/state.png
-[image3]: ./writeup/cost.png
 
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/896/view) Points
